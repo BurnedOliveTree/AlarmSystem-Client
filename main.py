@@ -1,8 +1,27 @@
 from threading import Thread
 from time import sleep
 from pyaudio import PyAudio, paInt16
+import RPi.GPIO as GPIO
 import wave
 import requests
+
+
+class MovementDetector:
+    def __init__(self):
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setup(24, GPIO.IN)
+    
+    def run(self, iterations):
+        while iterations > 0:
+            if GPIO.input(24):
+                print('Movement detected')
+            else:
+                print('No movement')
+            iterations -= 1
+            sleep(1)
+
+    def __del__(self):
+        GPIO.cleanup()
 
 
 class Recorder:
@@ -69,5 +88,8 @@ class Recorder:
 
 
 if __name__ == '__main__':
+    # detector = MovementDetector()
+    # detector.run(10)
+    # del detector
     record = Recorder()
     record.terminal()
