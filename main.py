@@ -5,6 +5,10 @@ import wave
 import requests
 
 
+DEVICE_ID = 1
+SERVER_IP = "0.0.0.0"
+
+
 class Recorder:
     FORMAT = paInt16    # data format
     CHANNELS = 1        # number if channels
@@ -66,6 +70,12 @@ class Recorder:
                 print('Audio uploaded to server!')
             if i == 'end':
                 break
+
+
+def report_alarm():
+    response = requests.post(f"http://{SERVER_IP}/device/report-alarm", params={"device_id": DEVICE_ID})
+    print(response.json())
+    return response.json()["id"]
 
 
 if __name__ == '__main__':
