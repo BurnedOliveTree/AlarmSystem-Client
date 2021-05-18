@@ -46,10 +46,11 @@ class Recorder:
             waveFile.writeframes(b''.join(self.frames))
 
     @staticmethod
-    def upload(ip="0.0.0.0"):
+    def upload():
+        alarm_id = report_alarm()
         with open('file.wav', 'rb') as waveFile:
             files = {"record": waveFile}
-            requests.post(f"http://{ip}/device/upload-record", files=files)
+            requests.post(f"http://{SERVER_IP}/device/upload-record", files=files, params={"alarm_id": alarm_id})
 
     def terminal(self):
         i = ''
