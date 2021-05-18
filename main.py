@@ -7,6 +7,8 @@ import requests
 
 DEVICE_ID = 1
 SERVER_IP = "0.0.0.0"
+SERVER_PORT = "5000"
+URL = f"http://{SERVER_IP}:{SERVER_PORT}"
 
 
 class Recorder:
@@ -50,7 +52,7 @@ class Recorder:
         alarm_id = report_alarm()
         with open('file.wav', 'rb') as waveFile:
             files = {"record": waveFile}
-            requests.post(f"http://{SERVER_IP}/device/upload-record", files=files, params={"alarm_id": alarm_id})
+            requests.post(f"{URL}/device/upload-record", files=files, params={"alarm_id": alarm_id})
 
     def terminal(self):
         i = ''
@@ -74,7 +76,7 @@ class Recorder:
 
 
 def report_alarm():
-    response = requests.post(f"http://{SERVER_IP}/device/report-alarm", params={"device_id": DEVICE_ID})
+    response = requests.post(f"{URL}/device/report-alarm", params={"device_id": DEVICE_ID})
     print(response.json())
     return response.json()["id"]
 
