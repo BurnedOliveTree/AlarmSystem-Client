@@ -7,6 +7,12 @@ import wave
 import requests
 
 
+DEVICE_ID = 1
+SERVER_IP = "0.0.0.0"
+SERVER_PORT = "5000"
+URL = f"http://{SERVER_IP}:{SERVER_PORT}"
+
+
 class MovementDetector:
     def __init__(self):
         GPIO.setmode(GPIO.BCM)
@@ -64,10 +70,11 @@ class Recorder:
         sound.export("file.mp3", format="mp3")
 
     @staticmethod
-    def upload(ip="0.0.0.0"):
+    def upload():
+        alarm_id = report_alarm()
         with open('file.wav', 'rb') as waveFile:
             files = {"record": waveFile}
-            requests.post(f"http://{ip}/device/upload-record", files=files)
+            requests.post(f"{URL}/device/upload-record", files=files, params={"alarm_id": alarm_id})
 
     def terminal(self):
         i = ''
@@ -88,6 +95,12 @@ class Recorder:
                 print('Audio uploaded to server!')
             if i == 'end':
                 break
+
+
+def report_alarm():
+    response = requests.post(f"{URL}/device/report-alarm", params={"device_id": DEVICE_ID})
+    print(response.json())
+    return response.json()["id"]
 
 
 if __name__ == '__main__':
