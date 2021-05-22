@@ -8,9 +8,10 @@ import requests
 
 
 DEVICE_ID = 1
-SERVER_IP = "0.0.0.0"
+SERVER_IP = "192.168.0.31"
 SERVER_PORT = "5000"
 URL = f"http://{SERVER_IP}:{SERVER_PORT}"
+VOLUME_GAIN = 39
 
 
 class MovementDetector:
@@ -67,12 +68,13 @@ class Recorder:
             waveFile.setframerate(Recorder.RATE)
             waveFile.writeframes(b''.join(self.frames))
         sound = AudioSegment.from_wav("file.wav")
+        sound += VOLUME_GAIN
         sound.export("file.mp3", format="mp3")
 
     @staticmethod
     def upload():
         alarm_id = report_alarm()
-        with open('file.wav', 'rb') as waveFile:
+        with open('file.mp3', 'rb') as waveFile:
             files = {"record": waveFile}
             requests.post(f"{URL}/device/upload-record", files=files, params={"alarm_id": alarm_id})
 
