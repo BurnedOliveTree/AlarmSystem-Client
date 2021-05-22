@@ -1,6 +1,7 @@
 from threading import Thread
 from time import sleep
 from pyaudio import PyAudio, paInt16
+from pydub import AudioSegment
 import RPi.GPIO as GPIO
 import wave
 import requests
@@ -44,7 +45,7 @@ class Recorder:
                                       input=True, frames_per_buffer=Recorder.CHUNK)
         self.recording = True
         while self.recording:
-            self.frames.append(self.stream.read(Recorder.CHUNK))
+            self.frames.append(self.stream.read(Recorder.CHUNK, exception_on_overflow=False))
 
     def stop(self):
         self.recording = False
@@ -59,6 +60,8 @@ class Recorder:
             waveFile.setsampwidth(self.audio.get_sample_size(Recorder.FORMAT))
             waveFile.setframerate(Recorder.RATE)
             waveFile.writeframes(b''.join(self.frames))
+        sound = AudioSegment.from_wav("file.wav")
+        sound.export("file.mp3", format="mp3")
 
     @staticmethod
     def upload(ip="0.0.0.0"):
