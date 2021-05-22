@@ -1,6 +1,8 @@
 from threading import Thread
 from time import sleep
 from pyaudio import PyAudio, paInt16
+from pydub import AudioSegment
+import RPi.GPIO as GPIO
 import wave
 import requests
 
@@ -9,6 +11,24 @@ DEVICE_ID = 1
 SERVER_IP = "0.0.0.0"
 SERVER_PORT = "5000"
 URL = f"http://{SERVER_IP}:{SERVER_PORT}"
+
+
+class MovementDetector:
+    def __init__(self):
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setup(24, GPIO.IN)
+    
+    def run(self, iterations):
+        while iterations > 0:
+            if GPIO.input(24):
+                print('Movement detected')
+            else:
+                print('No movement')
+            iterations -= 1
+            sleep(1)
+
+    def __del__(self):
+        GPIO.cleanup()
 
 
 class Recorder:
@@ -31,7 +51,7 @@ class Recorder:
                                       input=True, frames_per_buffer=Recorder.CHUNK)
         self.recording = True
         while self.recording:
-            self.frames.append(self.stream.read(Recorder.CHUNK))
+            self.frames.append(self.stream.read(Recorder.CHUNK, exception_on_overflow=False))
 
     def stop(self):
         self.recording = False
@@ -46,6 +66,8 @@ class Recorder:
             waveFile.setsampwidth(self.audio.get_sample_size(Recorder.FORMAT))
             waveFile.setframerate(Recorder.RATE)
             waveFile.writeframes(b''.join(self.frames))
+        sound = AudioSegment.from_wav("file.wav")
+        sound.export("file.mp3", format="mp3")
 
     @staticmethod
     def upload():
@@ -82,5 +104,8 @@ def report_alarm():
 
 
 if __name__ == '__main__':
+    # detector = MovementDetector()
+    # detector.run(10)
+    # del detector
     record = Recorder()
     record.terminal()
