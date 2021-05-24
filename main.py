@@ -9,6 +9,7 @@ import signal
 import sys
 import asyncio
 import json
+from datetime import datetime
 
 
 DEVICE_ID = 1
@@ -109,6 +110,7 @@ class Recorder:
 
 
 def report_alarm():
+    print(f'<time>  Sending alarm report: {datetime.now().time()}')
     response = requests.post(f"{URL}/device/report-alarm", params={"device_id": DEVICE_ID})
     print(f'<main>  Alarm ID: {response.json()["id"]}')
     return response.json()["id"]
@@ -126,6 +128,7 @@ async def change_settings():
             data = json.loads(data.decode('utf-8'))
             ARMED = data['is_armed']
             RECORDING_TIME = data['recording_time']
+            print(f'<time>  New settings received: {datetime.now().time()}')
             print(f'<async> New settings received: {ARMED}, {RECORDING_TIME}')
 
             writer.close()
@@ -155,6 +158,7 @@ if __name__ == '__main__':
             if ARMED:
                 if detector.check():
                     print('<main>  Movement detected!')
+                    print(f'<time>  Movement detected: {datetime.now().time()}')
                     id = report_alarm()
                     recording_thread = Thread(target=record.start)
                     recording_thread.start()
