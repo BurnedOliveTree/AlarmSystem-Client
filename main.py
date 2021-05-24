@@ -110,22 +110,27 @@ class Recorder:
 
 def report_alarm():
     response = requests.post(f"{URL}/device/report-alarm", params={"device_id": DEVICE_ID})
-    print(response.json())
+    print(f'<main>  Alarm ID: {response.json()["id"]}')
     return response.json()["id"]
 
 
 async def change_settings():
-    while True:
-        reader, writer = await asyncio.open_connection('192.168.0.31', 8888)
+    global ARMED, RECORDING_TIME
+    try:
+        while True:
+            print('<async> Waiting for connection...')
+            reader, writer = await asyncio.open_connection(SERVER_IP, 8888)
 
-        global ARMED, RECORDING_TIME
-        data = await reader.readline()
-        data = json.loads(data.decode('utf-8'))
-        ARMED = data['is_armed']
-        RECORDING_TIME = data['recording_time']
-        print(data)
+            print('<async> Waiting for data...')
+            data = await reader.readline()
+            data = json.loads(data.decode('utf-8'))
+            ARMED = data['is_armed']
+            RECORDING_TIME = data['recording_time']
+            print(f'<async> New settings received: {ARMED}, {RECORDING_TIME}')
 
-        print('Close the connection')
+            writer.close()
+            await writer.wait_closed()
+    finally:
         writer.close()
         await writer.wait_closed()
 
@@ -134,25 +139,33 @@ def wrapper():
     asyncio.run(change_settings())
 
 
-def main():
+if __name__ == '__main__':
+    with open('settings.json', 'r') as file:
+        json_data = json.load(file)
+        ARMED = json_data['is_armed']
+        RECORDING_TIME = json_data['recording_time']
+    print(f'<main>  Settings loaded: {ARMED}, {RECORDING_TIME}')
     try:
         detector = MovementDetector()
         record = Recorder()
         async_thread = Thread(target=wrapper)
         async_thread.start()
+        print('<main>  Launching main loop...')
         while True:
             if ARMED:
                 if detector.check():
+                    print('<main>  Movement detected!')
                     id = report_alarm()
                     recording_thread = Thread(target=record.start)
                     recording_thread.start()
                     sleep(RECORDING_TIME)
                     record.stop()
                     record.save()
+                    print('<main>  Audio recorded and saved!')
                     record.upload(id)
+                    print('<main>  Recording uploaded!')
     finally:
+        print('<main>  Closing...')
         del detector
-
-
-if __name__ == '__main__':
-    main()
+        with open('settings.json', 'w') as file:
+            json.dump({"is_armed": ARMED, "recording_time": RECORDING_TIME}, file)
