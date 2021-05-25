@@ -1,5 +1,5 @@
 .idea/
 venv
 __pycache__/
-file.wav
-file.mp3
+file*.wav
+file*.mp3

@@ -1,14 +1,8 @@
 from threading import Thread
-from time import sleep
-from pyaudio import PyAudio, paInt16
 from pydub import AudioSegment
 import RPi.GPIO as GPIO
-import wave
-import requests
-import signal
-import sys
-import asyncio
-import json
+import requests, asyncio, json
+import sys, subprocess, signal
 from datetime import datetime
 
 
@@ -17,7 +11,7 @@ SERVER_IP = "192.168.0.31"
 SERVER_PORT = "5000"
 URL = f"http://{SERVER_IP}:{SERVER_PORT}"
 VOLUME_GAIN = 39
-
+DETECTOR_PIN = 24
 
 ARMED = True
 RECORDING_TIME = 30
@@ -32,10 +26,11 @@ signal.signal(signal.SIGTERM, sigterm_handler)
 class MovementDetector:
     def __init__(self):
         GPIO.setmode(GPIO.BCM)
-        GPIO.setup(24, GPIO.IN)
+        GPIO.setup(DETECTOR_PIN, GPIO.IN)
     
     def check(self):
-        if GPIO.input(24):
+        # return True if detector notices movement
+        if GPIO.input(DETECTOR_PIN):
             return True
         return False
 
@@ -44,72 +39,45 @@ class MovementDetector:
 
 
 class Recorder:
-    FORMAT = paInt16    # data format
-    CHANNELS = 1        # number if channels
-    RATE = 44100        # framerate in Hz
-    CHUNK = 1024        # frames / buffer
-    TIME = 5            # in seconds
-
-    def __init__(self):
-        self.audio = None
-        self.frames = None
-        self.stream = None
-        self.recording = False
-
-    def start(self):
-        self.audio = PyAudio()
-        self.frames = []
-        self.stream = self.audio.open(format=Recorder.FORMAT, channels=Recorder.CHANNELS, rate=Recorder.RATE,
-                                      input=True, frames_per_buffer=Recorder.CHUNK)
-        self.recording = True
-        while self.recording:
-            self.frames.append(self.stream.read(Recorder.CHUNK, exception_on_overflow=False))
-
-    def stop(self):
-        self.recording = False
-        sleep(1)
-        self.stream.stop_stream()
-        self.stream.close()
-        self.audio.terminate()
-
-    def save(self):
-        with wave.open('file.wav', 'wb') as waveFile:
-            waveFile.setnchannels(Recorder.CHANNELS)
-            waveFile.setsampwidth(self.audio.get_sample_size(Recorder.FORMAT))
-            waveFile.setframerate(Recorder.RATE)
-            waveFile.writeframes(b''.join(self.frames))
-        sound = AudioSegment.from_wav("file.wav")
+    @staticmethod
+    def record(alarm_id):
+        # record microphone input for a given time, then increase volume of created audio, convert it to mp3 and remove old wav file
+        print('<main>  Starting audio recording...')
+        subprocess.run(['nice', '-20', './main.sh', str(RECORDING_TIME), f'file{alarm_id}'])
+        sound = AudioSegment.from_wav(f'file{alarm_id}.wav')
         sound += VOLUME_GAIN
-        sound.export("file.mp3", format="mp3")
+        sound.export(f'file{alarm_id}.mp3', format='mp3')
+        subprocess.run(['rm', f'file{alarm_id}.wav'])
+        print('<main>  Audio recorded and saved!')
 
     @staticmethod
     def upload(alarm_id):
-        with open('file.mp3', 'rb') as waveFile:
-            files = {"record": waveFile}
+        # upload recorded file and then delete it
+        print('<main>  Starting to upload audio...')
+        with open(f'file{alarm_id}.mp3', 'rb') as file:
+            files = {"record": file}
             requests.post(f"{URL}/device/upload-record", files=files, params={"alarm_id": alarm_id})
+        subprocess.run(['rm', f'file{alarm_id}.mp3'])
+        print('<main>  Recording uploaded!')
 
-    def terminal(self):
+    @staticmethod
+    def terminal():
+        # for testing and development purpose
         i = ''
         while i != 'end':
             i: str = input('python$ ')
-            if i == 'start':
-                recording_thread = Thread(target=self.start)
-                recording_thread.start()
+            if i == 'record':
+                Recorder.record()
                 print('Started recording!')
-            if i == 'stop':
-                self.stop()
-                print('Stopped recording!')
-            if i == 'save':
-                self.save()
-                print('Audio saved!')
             if i == 'upload':
-                self.upload(report_alarm())
+                Recorder.upload(report_alarm())
                 print('Audio uploaded to server!')
             if i == 'end':
                 break
 
 
 def report_alarm():
+    # upon movement detection, immediately send a report about it and retrieve alarm UID
     print(f'<time>  Sending alarm report: {datetime.now().time()}')
     response = requests.post(f"{URL}/device/report-alarm", params={"device_id": DEVICE_ID})
     print(f'<main>  Alarm ID: {response.json()["id"]}')
@@ -117,6 +85,7 @@ def report_alarm():
 
 
 async def change_settings():
+    # awaits and executes any incoming settings changes
     global ARMED, RECORDING_TIME
     try:
         while True:
@@ -150,7 +119,6 @@ if __name__ == '__main__':
     print(f'<main>  Settings loaded: {ARMED}, {RECORDING_TIME}')
     try:
         detector = MovementDetector()
-        record = Recorder()
         async_thread = Thread(target=wrapper)
         async_thread.start()
         print('<main>  Launching main loop...')
@@ -160,14 +128,8 @@ if __name__ == '__main__':
                     print('<main>  Movement detected!')
                     print(f'<time>  Movement detected: {datetime.now().time()}')
                     id = report_alarm()
-                    recording_thread = Thread(target=record.start)
-                    recording_thread.start()
-                    sleep(RECORDING_TIME)
-                    record.stop()
-                    record.save()
-                    print('<main>  Audio recorded and saved!')
-                    record.upload(id)
-                    print('<main>  Recording uploaded!')
+                    Recorder.record(id)
+                    Recorder.upload(id)
     finally:
         print('<main>  Closing...')
         del detector
